@@ -402,8 +402,27 @@ void handleKeyboard(unsigned char key, int x, int y)
   } 
 }
 
+void promptInstruction()
+{
+  std::cout << "--------------------------------------------------------------" << std::endl;
+  std::cout << "default warp mode: projective" << std::endl;
+  std::cout << "options: " << std::endl;
+  std::cout << "\t-b          bilinear switch - do bilinear warp" << std::endl;
+  std::cout << "transform specifications: " << std::endl;
+  std::cout << "\tr theta     counter clockwise rotation about image origin, theta in degrees" << std::endl
+            << "\ts sx sy     scale (watch out for scale by 0!)" << std::endl
+            << "\tt dx dy     translate" << std::endl
+            << "\tf xf yf     flip - if xf = 1 flip horizontal, yf = 1 flip vertical" << std::endl
+            << "\th hx hy     shear" << std::endl
+            << "\tp px py     perspective" << std::endl
+            << "\td           done" << std::endl;
+  std::cout << "--------------------------------------------------------------" << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
+  promptInstruction();
+
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_SINGLE | GLUT_RGBA);
 	

@@ -310,7 +310,7 @@ void warp(const unsigned char *inPixmap)
       k = (int)std::floor(v);
       l = (int)std::floor(u);
 
-      if (k < 0 || k > inH || l < 0 || l > inW) 
+      if (k < 0 || k >= inH || l < 0 || l >= inW) 
         continue;
 
       for (int channel = 0; channel < RGBA; ++channel) 

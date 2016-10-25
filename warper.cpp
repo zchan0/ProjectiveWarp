@@ -25,15 +25,23 @@ typedef enum
   Projective = 'p'
 } Transform;
 
+enum WarpMode
+{
+  BilinearWarp = 0,
+  ProjectiveWarp = 1
+};
+
 static const unsigned char ESC = 27;
 
 static int inW, inH, outW, outH;
 static unsigned char *outPixmap;
 static std::string input, output;
+static WarpMode mode;
 
 static ImageIO ioOrigin = ImageIO();
 static ImageIO ioWarped = ImageIO();
 
+static Vector2D xycorners[4];
 static Matrix3D sepcMatrix  = Matrix3D(); // Single transform matrix
 static Matrix3D multiMatrix = Matrix3D(); // Prodcut of multiple matrices
 
@@ -60,16 +68,43 @@ void split(const std::string &s, const char delim, std::vector<std::string> &ele
 
 bool parseCommandLine(int argc, char* argv[]) 
 {
+  // default set mode to be projective
+  mode = ProjectiveWarp;
+  
   switch (argc) {
-  case 2: case 3:
-  	input  = argv[1];
-    output = argv[2] != NULL ? argv[2] : "output.png";
-    return true; break;
+    case 2:
+      if (argv[1][0] != '-') {
+        input  = argv[1];
+        output = "output.png";
+        return true;
+      }
+      std::cerr << "Usage: warper [-b | -i] inimage.png [outimage.png]" << std:: endl;
+      exit(1);
+      return false; break; 
+    case 3: case 4:
+      // has option
+      if (argv[1][0] == '-') {
+        if (argv[1][1] == 'b') {
+          mode = BilinearWarp;
+        }
+        if (argv[1][1] == 'i') {
+          // interactive warp
+        }
+        input  = argv[2];
+        output = argv[3] != NULL ? argv[3] : "output.png";
+        return true; break;
+      }
+      // no option 
+      else {
+        input  = argv[1];
+        output = argv[2] != NULL ? argv[2] : "output.png";
+        return true; break;
+      }
 
-  default:
-  	std::cerr << "Usage: warper inimage.png [outimage.png]" << std:: endl;
-    exit(1);
-  	return false; break;
+    default:
+    	std::cerr << "Usage: warper [-b | -i] inimage.png [outimage.png]" << std:: endl;
+      exit(1);
+    	return false; break;
   }
 }
 
@@ -241,6 +276,16 @@ void setupOutSize(int &outW, int &outH)
   std::cout << "after translation, multiMatrix " << std::endl;
   multiMatrix.print();
 
+  // calculate coordinates after translating
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 2; ++j) {
+      forwardMap(us[i], vs[j], xs[i], ys[j]);
+      // store 4 corners in xycorners
+      xycorners[i * 2 + j].x = xs[i];
+      xycorners[i * 2 + j].y = ys[j];
+    }
+  }
+
   // calculate output size
   // need round up max/min value before substraction
   maxX = std::ceil(maxX);  maxY = std::ceil(maxY);
@@ -248,6 +293,7 @@ void setupOutSize(int &outW, int &outH)
   outW = maxX - minX;
   outH = maxY - minY;
   std::cout << "outW " << outW << "\toutH " << outH << std::endl;  
+  
   // init outPixmap with calculated w / h
   setupOutPixmap(outW, outH);
 }
@@ -274,6 +320,33 @@ void warp(const unsigned char *inPixmap)
 
 }
 
+void bilinearWarp(const unsigned char *inPixmap)
+{
+  setupOutSize(outW, outH);
+
+  int k, l;
+  float u, v;
+  Vector2D xyVector, uvVector;
+  BilinearCoeffs coeff;
+  setbilinear(outW, outH, xycorners, coeff);
+
+  for (int y = 0; y < outH; ++y) {
+    for (int x = 0; x < outW; ++x) {
+      xyVector.x = x;
+      xyVector.y = y;
+      invbilinear(coeff, xyVector, uvVector);
+      k = (int)std::floor(uvVector.y);
+      l = (int)std::floor(uvVector.x);
+
+      if (k < 0 || k > inH || l < 0 || l > inW) 
+        continue;
+
+      for (int channel = 0; channel < RGBA; ++channel)
+        outPixmap[(y * outW + x) * RGBA + channel] = inPixmap[(k * inW + l) * RGBA + channel];
+    }
+  }
+}
+
 void loadImage()
 {
   ioOrigin.loadFile(input);
@@ -281,7 +354,17 @@ void loadImage()
   inW = ioOrigin.getWidth();
   inH = ioOrigin.getHeight();
 
-  warp(ioOrigin.pixmap);
+  switch(mode) {
+    case ProjectiveWarp:
+      warp(ioOrigin.pixmap);
+      break;
+    case BilinearWarp:
+      bilinearWarp(ioOrigin.pixmap);
+      break;
+    default:
+      break;
+  }
+
   ioWarped.setPixmap(outW, outH, outPixmap);
 }
 
